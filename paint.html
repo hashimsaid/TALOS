@@ -1,0 +1,991 @@
+<html lang="en">
+  <head>
+    <title>T.A.L.O.S</title>
+    <link rel="stylesheet" href="css/main.css" />
+    <link
+      href="https://fonts.googleapis.com/css?family=Share Tech Mono"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <audio id="backgroundMusic">
+      <source src="./sounds/background_music.mp3" type="audio/mp3" />
+    </audio>
+    <audio id="buttonSound">
+      <source src="./sounds/button_sound.mp3" type="audio/mp3" />
+    </audio>
+    <audio id="gateSound">
+      <source src="./sounds/gate.mp3" type="audio/mp3" />
+    </audio>
+    <audio id="jumpSound">
+      <source src="./sounds/jump_sound.mp3" type="audio/mp3" />
+    </audio>
+    <audio id="walkingSound">
+      <source src="./sounds/walking_sound.mp3" type="audio/mp3" />
+    </audio>
+    <div id="titleScreen">
+      <div id="title">T.A.L.O.S</div>
+      <div id="menu">
+        <button class="button" id="start">Start</button>
+        <button class="button" id="options">Options</button>
+        <button class="button" id="help">Help</button>
+        <button class="button" id="credits">Credits</button>
+      </div>
+      <div id="optionsMenu">
+        Music <input type="checkbox" id="sound" /> <br /><br />
+        <button class="button" id="reset">Reset The Game</button><br /><br />
+        <button class="button" id="optionsBack">Back</button>
+      </div>
+      <div id="helpMenu">
+        Movement: WASD or Arrow Keys<br /><br />
+        Jump: Spacebar<br /><br />
+        Sprint: Left or Right Shift<br /><br />
+        Press X or ESC to Pause<br /><br />
+        <button class="button" id="helpBack">Back</button>
+      </div>
+      <div id="creditsMenu">
+        Hashim Said<br /><br />
+        Shihab Mostafa<br /><br />
+        Bilal Tamer<br /><br />
+        Fady Tarek<br /><br />
+        <button class="button" id="creditsBack">Back</button>
+      </div>
+    </div>
+    <button class="button" id="pause">||</button>
+    <script type="module">
+      import { Walls } from "./wall.js";
+      import * as THREE from "https://cdn.skypack.dev/three@0.132.2/build/three.module.js";
+
+      import { PointerLockControls } from "https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/PointerLockControls.js";
+      import { OBJLoader } from "https://cdn.skypack.dev/three@0.132.2/examples/jsm/loaders/OBJLoader.js";
+      import { MTLLoader } from "https://cdn.skypack.dev/three@0.132.2/examples/jsm/loaders/MTLLoader.js";
+
+      var camera, scene, renderer, controls, laser1dist, pointer1;
+      var ingame = false;
+      var moveForward = false;
+      var moveBackward = false;
+      var moveLeft = false;
+      var moveRight = false;
+      var canJump = false;
+      var isWalking = false;
+      var speed = 400;
+      var objDistance = 15;
+      var standing = 3;
+      var ground = -6;
+      var grabbed = false;
+      var falling = false;
+      var gate1open = false;
+      var turret2 = false;
+      const objVelocity = new THREE.Vector3();
+      var pointer2 = new THREE.Vector3(0, 0, 1);
+      var laser2 = new THREE.Raycaster();
+      var arrow;
+      var arrow2;
+      var box1 = new Walls(0, 10, 60, false);
+      var box2 = new Walls(60, 10, 0, true);
+      var box3 = new Walls(0, 10, -60, false);
+      var box4 = new Walls(-60, 10, 0, true);
+      var box5 = new Walls(-600, 10, 60, false);
+      var box6 = new Walls(-660, 10, 0, true);
+      var box7 = new Walls(-600, 10, -60, false);
+      var floorEnd;
+
+      var x;
+      var v;
+      const raycaster = new THREE.Raycaster();
+      const mouseClick = new THREE.Vector2();
+      const movemouse = new THREE.Vector2();
+      var draggable = THREE.object3D;
+      var prevTime = performance.now();
+      const velocity = new THREE.Vector3();
+      const direction = new THREE.Vector3();
+      const laser1 = new THREE.Raycaster();
+
+      var loadingManager = null;
+      var RESOURCES_LOADED = false;
+      var models = {
+        gun: {
+          obj: "Gun.obj",
+          mtl: "Gun.mtl",
+          mesh: null,
+        },
+        turret: {
+          obj: "turret.obj",
+          mtl: "turret.mtl",
+          mesh: null,
+        },
+        cube: {
+          obj: "cube.obj",
+          mtl: "cube.mtl",
+          mesh: null,
+        },
+      };
+
+      var meshes = {};
+      var objects = [];
+
+      loadingManager = new THREE.LoadingManager();
+      loadingManager.onProgress = function (item, loaded, total) {
+        console.log(item, loaded, total);
+      };
+      loadingManager.onLoad = function () {
+        console.log("loaded all resources");
+        RESOURCES_LOADED = true;
+        onResourcesLoaded();
+      };
+      var textureloader = new THREE.TextureLoader();
+      var tilesBasecolor = textureloader.load(
+        "textures/yellowcube/Metal_Plate_048_basecolor.jpg"
+      );
+      var tilesNormalMap = textureloader.load(
+        "textures/yellowcube/Metal_Plate_048_normal.jpg"
+      );
+      var tilesRoughnessMap = textureloader.load(
+        "textures/yellowcube/Metal_Plate_048_roughness.jpg"
+      );
+      var tilesAmbientocclusionMap = textureloader.load(
+        "textures/yellowcube/Metal_Plate_048_ambientOcclusion.jpg"
+      );
+
+      var box = new THREE.Mesh(
+        new THREE.BoxGeometry(8, 8, 14),
+        new THREE.MeshBasicMaterial({
+          map: tilesBasecolor,
+          normalMap: tilesNormalMap,
+          roughnessMap: tilesRoughnessMap,
+          aoMap: tilesAmbientocclusionMap,
+        })
+      );
+      var box22 = new THREE.Mesh(
+        new THREE.BoxGeometry(8, 8, 8),
+        new THREE.MeshPhongMaterial({
+          map: tilesBasecolor,
+          normalMap: tilesNormalMap,
+          roughnessMap: tilesRoughnessMap,
+          aoMap: tilesAmbientocclusionMap,
+        })
+      );
+      var button = new THREE.Mesh(
+        new THREE.BoxGeometry(10, 2, 10),
+        new THREE.MeshPhongMaterial({ color: 0x888888 })
+      );
+
+      var material = new THREE.MeshLambertMaterial({
+        transparent: true,
+        color: 0xff0000,
+        side: THREE.BackSide,
+        opacity: 0,
+      });
+      var body = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.8, 0.8, 3, 20),
+        material
+      );
+
+      var crosshairGeo = new THREE.SphereGeometry(0.5, 32, 16);
+      var crosshairMat = new THREE.MeshBasicMaterial({ color: 0x777777 });
+      var crosshair = new THREE.Mesh(crosshairGeo, crosshairMat);
+
+      init();
+      animate();
+
+      function onGround() {
+        if (controls.isLocked) {
+          const down = new THREE.Vector3(0, -1, 0);
+          raycaster.set(camera.position, down);
+          const found = raycaster.intersectObjects(objects);
+
+          if (found.length > 0 && found[0].object.userData.collision) {
+            standing =
+              found[0].object.position.y +
+              12 +
+              found[0].object.geometry.parameters.height / 2;
+            falling = false;
+          } else if (found.length == 0) {
+            falling = true;
+          }
+        }
+      }
+
+      function level1gate() {
+        if (
+          Math.abs(box22.position.x - button.position.x) < 6 &&
+          Math.abs(box22.position.z - button.position.z) < 6 &&
+          Math.abs(box22.position.y - button.position.y) < 5
+        ) {
+          gate1open = true;
+        } else {
+          gate1open = false;
+        }
+        if (gate1open) {
+          if (box4.getShape.position.y >= -65) {
+            box4.getShape.position.y -= 0.05;
+            gateSound.play();
+          }
+        } else {
+          if (box4.getShape.position.y <= 9) {
+            box4.getShape.position.y += 0.05;
+            gateSound.play();
+          }
+        }
+      }
+
+      function init() {
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          100000
+        );
+
+        camera.position.x = 0;
+        camera.position.y = 12;
+        camera.position.z = 0;
+
+        scene = new THREE.Scene();
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        controls = new PointerLockControls(camera, renderer.domElement);
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        renderer.shadowMap.enabled = true;
+        const light1 = new THREE.DirectionalLight(0xffffff, 1, 200);
+        light1.position.set(10, 50, 40);
+        light1.castShadow = true;
+
+        scene.add(light1);
+
+        const light = new THREE.HemisphereLight(0xffffff, 0x080820, 0.5);
+        scene.add(light);
+
+        body.position.set(10, 30, 50);
+
+        scene.add(body);
+
+        box.position.set(0, -5, -40);
+        box.castShadow = true;
+        box22.position.set(40, 0, 50);
+        button.position.set(20, -10, -10);
+
+        var floorGeometry = new THREE.BoxGeometry(120, 1, 120);
+
+        var textureloader = new THREE.TextureLoader();
+        var tilesBasecolor = textureloader.load(
+          "textures/rock/Rocks_Hexagons_001_basecolor.jpg"
+        );
+        var tilesNormalMap = textureloader.load(
+          "textures/rock/Rocks_Hexagons_001_normal.jpg"
+        );
+        var tilesRoughnessMap = textureloader.load(
+          "textures/rock/Rocks_Hexagons_001_roughness.jpg"
+        );
+        var tilesAmbientocclusionMap = textureloader.load(
+          "textures/rock/Rocks_Hexagons_001_ambientOcclusion.jpg"
+        );
+
+        var floorMaterial = new THREE.MeshBasicMaterial({
+          map: tilesBasecolor,
+          normalMap: tilesNormalMap,
+          roughnessMap: tilesRoughnessMap,
+          aoMap: tilesAmbientocclusionMap,
+        });
+        var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.position.y = -10;
+        floor.recieveShadow = true;
+
+        floor.recieveShadow = true;
+
+        var floorGeometry = new THREE.BoxGeometry(30, 1, 30);
+
+        var textureloader = new THREE.TextureLoader();
+        var tilesBasecolor = textureloader.load(
+          "textures/shihabfloor/Concrete_Blocks_004_basecolor.jpg"
+        );
+        var tilesNormalMap = textureloader.load(
+          "textures/shihabfloor/Concrete_Blocks_004_normal.jpg"
+        );
+        var tilesRoughnessMap = textureloader.load(
+          "textures/shihabfloor/Concrete_Blocks_004_roughness.jpg"
+        );
+        var tilesAmbientocclusionMap = textureloader.load(
+          "textures/shihabfloor/Concrete_Blocks_004_ambientOcclusion.jpg"
+        );
+        var floorMaterial = new THREE.MeshBasicMaterial({
+          map: tilesBasecolor,
+          normalMap: tilesNormalMap,
+          roughnessMap: tilesRoughnessMap,
+          aoMap: tilesAmbientocclusionMap,
+        });
+        var floor3 = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor3.position.x = -200;
+        floor3.position.y = -15;
+        floor.recieveShadow = true;
+
+        var floorGeometry = new THREE.BoxGeometry(30, 1, 30);
+        var floorMaterial = new THREE.MeshBasicMaterial({
+          map: tilesBasecolor,
+          normalMap: tilesNormalMap,
+          roughnessMap: tilesRoughnessMap,
+          aoMap: tilesAmbientocclusionMap,
+        });
+        var floor4 = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor4.position.x = -300;
+        floor4.position.y = -15;
+        floor.recieveShadow = true;
+
+        var floorGeometry = new THREE.BoxGeometry(30, 1, 30);
+        var floorMaterial = new THREE.MeshBasicMaterial({
+          map: tilesBasecolor,
+          normalMap: tilesNormalMap,
+          roughnessMap: tilesRoughnessMap,
+          aoMap: tilesAmbientocclusionMap,
+        });
+        var floor5 = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor5.position.x = -400;
+        floor5.position.y = -15;
+        floor.recieveShadow = true;
+
+        var floorGeometry = new THREE.BoxGeometry(30, 1, 30);
+        var floorMaterial = new THREE.MeshBasicMaterial({
+          map: tilesBasecolor,
+          normalMap: tilesNormalMap,
+          roughnessMap: tilesRoughnessMap,
+          aoMap: tilesAmbientocclusionMap,
+        });
+        var floor6 = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor6.position.x = -500;
+        floor6.position.y = -15;
+        floor.recieveShadow = true;
+
+        var floorGeometry = new THREE.BoxGeometry(120, 1, 120);
+        var floorMaterial = new THREE.MeshPhongMaterial({ color: 0xdddedf });
+        floorEnd = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorEnd.position.x = -600;
+        floorEnd.position.y = -10;
+        floorEnd.recieveShadow = true;
+
+        var ceilngGeometry = new THREE.BoxGeometry(120, 1, 120);
+        var ceiling = new THREE.Mesh(ceilngGeometry, floorMaterial);
+        ceiling.position.y = 60;
+        ceiling.recieveShadow = true;
+
+        laser1dist = 0;
+        body.geometry.openEnded = true;
+        scene.add(button);
+        scene.add(crosshair);
+
+        scene.add(floor);
+        objects.push(floor);
+
+        scene.add(floor3);
+        objects.push(floor3);
+        floor3.userData.ground = true;
+        floor3.userData.collision = true;
+
+        scene.add(floor4);
+        objects.push(floor4);
+        floor4.userData.ground = true;
+        floor4.userData.collision = true;
+
+        scene.add(floor5);
+        objects.push(floor5);
+        floor5.userData.ground = true;
+        floor5.userData.collision = true;
+
+        scene.add(floor6);
+        objects.push(floor6);
+        floor6.userData.ground = true;
+        floor6.userData.collision = true;
+
+        scene.add(floorEnd);
+        objects.push(floorEnd);
+        floorEnd.userData.ground = true;
+        floorEnd.userData.collision = true;
+
+        scene.add(ceiling);
+        floor.userData.ground = true;
+        floor.userData.collision = true;
+        scene.add(box);
+        box.userData.name = "BOX";
+        box.userData.draggable = true;
+        box.userData.collision = true;
+        objects.push(box);
+        scene.add(box22);
+        box22.userData.name = "BOX2";
+        box22.userData.draggable = true;
+        box22.userData.collision = true;
+        objects.push(box22);
+        box2.getShape.userData.collision = true;
+        box3.getShape.userData.collision = true;
+        box4.getShape.userData.collision = true;
+
+        scene.add(box1.getShape);
+        scene.add(box2.getShape);
+        scene.add(box3.getShape);
+        scene.add(box4.getShape);
+        scene.add(box5.getShape);
+        scene.add(box6.getShape);
+        scene.add(box7.getShape);
+
+        //===========================================================================================================
+        //===========================================================================================================
+
+        //sky box
+        var geometry = new THREE.BoxGeometry(10000, 10000, 10000);
+        function createMaterialArray() {
+          var skyboxImagepaths = [
+            "textures/Spacebox23/corona_ft.png",
+            "textures/Spacebox23/corona_bk.png",
+            "textures/Spacebox23/corona_up.png",
+            "textures/Spacebox23/corona_dn.png",
+            "textures/Spacebox23/corona_rt.png",
+            "textures/Spacebox23/corona_lf.png",
+          ];
+          var materialArray = new Array();
+          for (var i = 0; i < skyboxImagepaths.length; i++) {
+            var texture = new THREE.TextureLoader().load(skyboxImagepaths[i]);
+            materialArray[i] = new THREE.MeshBasicMaterial({
+              map: texture,
+              side: THREE.BackSide,
+            });
+          }
+          return materialArray;
+        }
+
+        var materialArray = createMaterialArray();
+        var cube = new THREE.Mesh(geometry, materialArray);
+
+        scene.add(cube);
+
+        var geometry = new THREE.BoxGeometry(10000, 10000, 10000);
+        function createMaterialArray2() {
+          var skyboxImagepaths = [
+            "textures/skybox/front.jpg",
+            "textures/skybox/back.jpg",
+            "textures/skybox/up.jpg",
+            "textures/skybox/down.jpg",
+            "textures/skybox/right.jpg",
+            "textures/skybox/left.jpg",
+          ];
+          var materialArray = new Array();
+          for (var i = 0; i < skyboxImagepaths.length; i++) {
+            var texture = new THREE.TextureLoader().load(skyboxImagepaths[i]);
+            materialArray[i] = new THREE.MeshBasicMaterial({
+              map: texture,
+              side: THREE.BackSide,
+            });
+          }
+          return materialArray;
+        }
+
+        var materialArray = createMaterialArray2();
+        var cube2 = new THREE.Mesh(geometry, materialArray);
+        cube2.position.set(0, 10100, 0);
+        scene.add(cube2);
+
+        //===========================================================================================================
+        //======================================================================================================
+        for (var _key in models) {
+          (function (key) {
+            var mtlLoader = new MTLLoader(loadingManager);
+            mtlLoader.load(models[key].mtl, function (materials) {
+              materials.preload();
+              var objLoader = new OBJLoader(loadingManager);
+              objLoader.setMaterials(materials);
+              objLoader.load(models[key].obj, function (mesh) {
+                models[key].mesh = mesh;
+
+                animate();
+              });
+            });
+          })(_key);
+        }
+
+        var backgroundMusic = document.getElementById("backgroundMusic");
+        backgroundMusic.loop = true;
+        backgroundMusic.volume = 0.2;
+
+        var buttonSound = document.getElementById("buttonSound");
+
+        var jumpSound = document.getElementById("jumpSound");
+        jumpSound.volume = 0.5;
+
+        var walkingSound = document.getElementById("walkingSound");
+        walkingSound.loop = true;
+        walkingSound.volume = 0.25;
+
+        var gateSound = document.getElementById("gateSound");
+        gateSound.volume = 0.25;
+
+        document.querySelector("#start").addEventListener("click", () => {
+          buttonSound.play();
+          ingame = true;
+          controls.lock();
+          document.getElementById("titleScreen").style.display = "none";
+          document.getElementById("pause").style.display = "block";
+        });
+
+        document.querySelector("#credits").addEventListener("click", () => {
+          buttonSound.play();
+          document.getElementById("title").style.display = "none";
+          document.getElementById("menu").style.display = "none";
+          document.getElementById("creditsMenu").style.display = "block";
+        });
+
+        document.querySelector("#creditsBack").addEventListener("click", () => {
+          buttonSound.play();
+          document.getElementById("title").style.display = "block";
+          document.getElementById("menu").style.display = "block";
+          document.getElementById("creditsMenu").style.display = "none";
+        });
+
+        document.querySelector("#help").addEventListener("click", () => {
+          buttonSound.play();
+          document.getElementById("title").style.display = "none";
+          document.getElementById("menu").style.display = "none";
+          document.getElementById("helpMenu").style.display = "block";
+        });
+
+        document.querySelector("#helpBack").addEventListener("click", () => {
+          buttonSound.play();
+          document.getElementById("title").style.display = "block";
+          document.getElementById("menu").style.display = "block";
+          document.getElementById("helpMenu").style.display = "none";
+        });
+
+        document.querySelector("#options").addEventListener("click", () => {
+          buttonSound.play();
+          document.getElementById("title").style.display = "none";
+          document.getElementById("menu").style.display = "none";
+          document.getElementById("optionsMenu").style.display = "block";
+        });
+
+        document.querySelector("#optionsBack").addEventListener("click", () => {
+          buttonSound.play();
+          document.getElementById("title").style.display = "block";
+          document.getElementById("menu").style.display = "block";
+          document.getElementById("optionsMenu").style.display = "none";
+        });
+
+        document.querySelector("#pause").addEventListener("click", () => {
+          buttonSound.play();
+          document.getElementById("pause").style.display = "none";
+          document.getElementById("titleScreen").style.display = "block";
+        });
+
+        document.querySelector("#reset").addEventListener("click", () => {
+          buttonSound.play();
+          controls.getObject().position.x = 0;
+          controls.getObject().position.y = 12;
+          controls.getObject().position.z = 0;
+          box.position.set(0, -5, -40);
+          box22.position.set(40, 0, 50);
+          floorEnd.position.y = -10;
+        });
+
+        document.querySelector("#sound").addEventListener("click", () => {
+          buttonSound.play();
+          if (document.getElementById("sound").checked) {
+            backgroundMusic.play();
+            backgroundMusic.volume = 0.3;
+          } else {
+            backgroundMusic.volume = 0.0;
+          }
+        });
+
+        const onKeyDown = function (event) {
+          if (controls.isLocked) {
+            switch (event.code) {
+              case "ArrowUp":
+              case "KeyW":
+                isWalking = true;
+                moveForward = true;
+                break;
+              case "ArrowLeft":
+              case "KeyA":
+                isWalking = true;
+                moveLeft = true;
+                break;
+              case "ArrowDown":
+              case "KeyS":
+                isWalking = true;
+                moveBackward = true;
+                break;
+              case "ArrowRight":
+              case "KeyD":
+                isWalking = true;
+                moveRight = true;
+                break;
+              case "Space":
+                if (canJump === true) {
+                  walkingSound.pause();
+                  velocity.y += 180;
+                  jumpSound.play();
+                }
+                canJump = false;
+                break;
+              case "ShiftRight":
+              case "ShiftLeft":
+                isWalking = true;
+                speed = 800;
+                break;
+              default:
+                break;
+            }
+          }
+        };
+
+        const onKeyUp = function (event) {
+          switch (event.code) {
+            case "ArrowUp":
+            case "KeyW":
+              isWalking = false;
+              moveForward = false;
+              break;
+            case "ArrowLeft":
+            case "KeyA":
+              isWalking = false;
+              moveLeft = false;
+              break;
+            case "ArrowDown":
+            case "KeyS":
+              isWalking = false;
+              moveBackward = false;
+              break;
+            case "ArrowRight":
+            case "KeyD":
+              isWalking = false;
+              moveRight = false;
+              break;
+            case "ShiftRight":
+            case "ShiftLeft":
+              isWalking = false;
+              speed = 300;
+              walkingSound.playbackRate = speed / 350;
+              break;
+            case "KeyX":
+              if (ingame) {
+                document.getElementById("pause").style.display = "none";
+                document.getElementById("titleScreen").style.display = "block";
+                controls.unlock();
+              }
+              ingame = false;
+              break;
+            default:
+              break;
+          }
+        };
+
+        document.addEventListener("keydown", onKeyDown);
+        document.addEventListener("keyup", onKeyUp);
+        window.addEventListener("resize", onWindowResize);
+
+        window.addEventListener("click", (event) => {
+          if (controls.isLocked) {
+            if (draggable) {
+              console.log("dropping draggable");
+              draggable = null;
+              grabbed = false;
+              objDistance = 15;
+              return;
+            }
+
+            mouseClick.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseClick.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouseClick, camera);
+            const found = raycaster.intersectObjects(scene.children);
+
+            if (found.length > 0 && found[1].object.userData.draggable) {
+              draggable = found[1].object;
+              grabbed = true;
+              console.log("found draggable" + draggable.userData.name);
+            }
+          }
+        });
+
+        window.addEventListener("mousemove", (event) => {
+          if (controls.isLocked) {
+            movemouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            movemouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            if (draggable != null) {
+              raycaster.setFromCamera(movemouse, camera);
+              const found = raycaster.intersectObjects(scene.children);
+              if (found.length > 0) {
+                for (var i of found) {
+                  draggable.position.z = crosshair.position.z;
+                  draggable.position.x = crosshair.position.x;
+                  draggable.position.y = crosshair.position.y;
+                }
+              }
+            }
+          }
+        });
+
+        window.addEventListener("wheel", (event) => {
+          if (controls.isLocked) {
+            if (draggable != null) {
+              objDistance -= event.deltaY / 50;
+              if (objDistance > 60) objDistance = 60;
+              if (objDistance < 15) objDistance = 15;
+            }
+          }
+        });
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function animate() {
+        if (RESOURCES_LOADED == false) {
+          requestAnimationFrame(animate);
+          console.log("animation stopped to load materials");
+          return;
+        }
+
+        requestAnimationFrame(animate);
+        level1gate();
+
+        var boundingwall = new THREE.Box3()
+          .setFromObject(box1.getShape)
+          .expandByScalar(5);
+        var boundingwall2 = new THREE.Box3()
+          .setFromObject(box2.getShape)
+          .expandByScalar(5);
+        var boundingwall3 = new THREE.Box3()
+          .setFromObject(box3.getShape)
+          .expandByScalar(5);
+        var boundingwall4 = new THREE.Box3()
+          .setFromObject(box4.getShape)
+          .expandByScalar(5);
+
+        crosshair.visible = true;
+
+        crosshair.position.x = camera.translateZ(-objDistance).position.x;
+        camera.translateZ(objDistance);
+        crosshair.position.y = camera.translateZ(-objDistance).position.y;
+        camera.translateZ(objDistance);
+        crosshair.position.z = camera.translateZ(-objDistance).position.z;
+        camera.translateZ(objDistance);
+
+        const time = performance.now();
+
+        if (controls.isLocked === true) {
+          var delta = (time - prevTime) / 1000;
+
+          velocity.x -= velocity.x * 10.0 * delta;
+          velocity.z -= velocity.z * 10.0 * delta;
+
+          velocity.y -= 9.8 * 30.0 * delta;
+
+          var col = boundingwall.containsPoint(camera.position);
+          var col2 = boundingwall2.containsPoint(camera.position);
+          var col3 = boundingwall3.containsPoint(camera.position);
+          var col4 = boundingwall4.containsPoint(camera.position);
+
+          direction.z = Number(moveForward) - Number(moveBackward);
+          direction.x = Number(moveRight) - Number(moveLeft);
+
+          if (controls.getObject().position.x < -540) {
+            if (controls.getObject().position.y < 10000) {
+              floorEnd.position.y += 1;
+            }
+          }
+          if (floorEnd.position.y > 9500) {
+            document.getElementById("pause").style.display = "none";
+            document.getElementById("titleScreen").style.display = "block";
+            controls.getObject().position.x = 0;
+            controls.getObject().position.y = 12;
+            controls.getObject().position.z = 0;
+            ingame = false;
+            controls.unlock();
+          }
+
+          if (!col & !col2 & !col3 & !col4) {
+            v = controls.getObject().position.z;
+            x = controls.getObject().position.x;
+
+            if (moveForward || moveBackward) {
+              velocity.z -= direction.z * speed * delta;
+            }
+
+            if (moveLeft || moveRight)
+              velocity.x -= direction.x * speed * delta;
+          }
+
+          if (col || col2 || col3 || col4) {
+            controls.getObject().position.z = v;
+            controls.getObject().position.x = x;
+          }
+
+          controls.moveRight(-velocity.x * delta);
+          controls.moveForward(-velocity.z * delta);
+
+          controls.getObject().position.y += velocity.y * delta;
+
+          if (controls.getObject().position.y < standing && !falling) {
+            velocity.y = 0;
+            controls.getObject().position.y = standing;
+
+            canJump = true;
+          }
+
+          if (!grabbed) {
+            objVelocity.y -= 0.01;
+          } else {
+            objVelocity.y = 0;
+          }
+
+          box22.position.y += objVelocity.y;
+          if (box22.position.y < ground) {
+            objVelocity.y = 0;
+            box22.position.y = ground;
+          }
+
+          meshes["Gun"].position.set(
+            camera.position.x,
+            camera.position.y - 0.5,
+            camera.position.z
+          );
+
+          meshes["Gun"].rotation.set(
+            camera.rotation.x,
+            camera.rotation.y,
+            camera.rotation.z
+          );
+
+          body.position.set(
+            camera.position.x,
+            camera.position.y,
+            camera.position.z
+          );
+
+          laser1.set(meshes["turret1"].position, pointer1);
+          const laser1Collision = laser1.intersectObjects(scene.children);
+          laser2.set(meshes["turret2"].position, pointer2);
+          const laser2Collision = laser2.intersectObjects(scene.children);
+
+          if (laser1Collision.length > 0) {
+            laser1dist = meshes["turret1"].position.distanceTo(
+              laser1Collision[0].object.position
+            );
+            arrow.setLength(laser1dist, 1, 0);
+            if (laser1Collision[0].object == body) {
+              controls.getObject().position.set(50, 12, 50);
+              raycaster.origin = controls.getObject().position;
+              raycaster.rotation = controls.getObject().rotation;
+              raycaster.direction = controls.direction;
+            }
+          }
+
+          if (laser2Collision.length > 0) {
+            var laser2dist = meshes["turret2"].position.distanceTo(
+              laser2Collision[0].object.position
+            );
+            arrow2.setLength(laser2dist, 1, 0);
+            if (laser2Collision[0].object == body) {
+              controls.getObject().position.set(50, 12, 50);
+              raycaster.origin = controls.getObject().position;
+              raycaster.rotation = controls.getObject().rotation;
+              raycaster.direction = controls.direction;
+            }
+          }
+
+          box.rotation.y = Math.PI / 2;
+
+          if (turret2) {
+            meshes["turret2"].position.x += 0.5;
+            if (meshes["turret2"].position.x > -80) {
+              turret2 = false;
+            }
+          }
+          if (!turret2) {
+            meshes["turret2"].position.x -= 0.5;
+            if (meshes["turret2"].position.x < -600) {
+              turret2 = true;
+            }
+          }
+
+          laser2.set(meshes["turret2"], pointer2);
+
+          arrow2.position.copy(meshes["turret2"].position);
+
+          if (controls.getObject().position.y < -400) {
+            controls.getObject().position.x = 0;
+            controls.getObject().position.y = 12;
+            controls.getObject().position.z = 0;
+          }
+
+          if (direction.z != 0 || direction.x != 0) {
+            if (isWalking && canJump) {
+              walkingSound.playbackRate = speed / 350;
+              walkingSound.play();
+            }
+          } else {
+            walkingSound.pause();
+          }
+        } else {
+          walkingSound.pause();
+          crosshair.visible = false;
+        }
+
+        prevTime = time;
+        onGround();
+
+        renderer.render(scene, camera);
+      }
+
+      function onResourcesLoaded() {
+        meshes["Gun"] = models.gun.mesh.clone();
+        scene.add(meshes["Gun"]);
+
+        meshes["turret1"] = models.turret.mesh.clone();
+        meshes["turret1"].castShadow = true;
+        scene.add(meshes["turret1"]);
+        meshes["turret1"].position.set(30, 2.8, -50);
+        meshes["turret1"].scale.set(3, 3, 3);
+
+        pointer1 = new THREE.Vector3(0, 0, 1);
+        laser1.set(meshes["turret1"], pointer1);
+        arrow = new THREE.ArrowHelper(
+          pointer1,
+          meshes["turret1"].position,
+          300,
+          0xff0000,
+          0,
+          0
+        );
+        scene.add(arrow);
+
+        meshes["turret2"] = models.turret.mesh.clone();
+        meshes["turret2"].castShadow = true;
+        scene.add(meshes["turret2"]);
+        meshes["turret2"].position.set(-300, -3, -50);
+        meshes["turret2"].scale.set(3, 3, 3);
+
+        laser2.set(meshes["turret2"], pointer2);
+        arrow2 = new THREE.ArrowHelper(
+          pointer2,
+          meshes["turret2"].position,
+          300,
+          0xff0000,
+          0,
+          0
+        );
+        scene.add(arrow2);
+
+        meshes["cube1"] = models.cube.mesh.clone();
+        meshes["cube1"].castShadow = true;
+        meshes["cube1"].scale.set(4, 4, 4);
+        box22.add(meshes["cube1"]);
+        meshes["cube2"] = models.cube.mesh.clone();
+        meshes["cube2"].castShadow = true;
+        meshes["cube2"].scale.set(4, 4, 8);
+        box.add(meshes["cube2"]);
+      }
+    </script>
+  </body>
+</html>
